@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartGrow | ESP32 Plant Monitor</title>
+<link rel="stylesheet" href="/static/styles.css?v=2">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#030a07">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SmartGrow">
+
+<!-- Modern Font -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+ 
+<!-- Professional Vector Icons -->
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+<!-- EMBEDDED CSS PARA SURE NA GAGANA ANG GRID AT HISTORY -->
+</head>
+<body>
+
+<div class="app">
+<main class="main">
+
+<div class="topbar">
+    <div class="page-title">
+        <h2>
+            <i class="ph-fill ph-plant"></i>
+            <span class="title-mobile">SmartGrow</span>
+        </h2>
+    </div>
+
+    <div class="top-actions">
+        <div class="connection" id="espBadge">
+            <div class="dot" id="espDot"></div> 
+            <span id="espText">WAITING FOR ESP32...</span>
+        </div>
+        <div class="date" id="currentDate">Loading...</div>
+        <button class="control-btn" id="installBtn" onclick="handleInstallClick()">
+            <i class="ph-bold ph-download-simple"></i> Install App
+        </button>
+    </div>
+</div>
+
+<div class="section-header" id="nav-env">
+    <h3>Environmental Overview</h3>
+</div>
+
+<div class="sensor-grid">
+    <div class="sensor temperature">
+        <div class="sensor-top">
+            <div class="sensor-icon"><i class="ph-fill ph-thermometer"></i></div>
+            <div class="sensor-status" id="temperatureStatus">NORMAL</div>
+        </div>
+        <div class="sensor-name">TEMPERATURE (Fan triggers at &ge;30&deg;C)</div>
+        <div class="sensor-value"><span id="temperature">--</span><span class="sensor-unit">&deg;C</span></div>
+        <div class="sensor-description">DHT11 Ambient sensor</div>
+    </div>
+
+    <div class="sensor humidity">
+        <div class="sensor-top">
+            <div class="sensor-icon"><i class="ph-fill ph-drop"></i></div>
+            <div class="sensor-status" id="humidityStatus">NORMAL</div>
+        </div>
+        <div class="sensor-name">AIR HUMIDITY</div>
+        <div class="sensor-value"><span id="humidity">--</span><span class="sensor-unit">%</span></div>
+        <div class="sensor-description">Target: 60% - 80% RH</div>
+    </div>
+
+    <div class="sensor soil">
+        <div class="sensor-top">
+            <div class="sensor-icon"><i class="ph-fill ph-potted-plant"></i></div>
+            <div class="sensor-status" id="soilStatus">GOOD</div>
+        </div>
+        <div class="sensor-name">SOIL MOISTURE (Pump triggers at &le;40%)</div>
+        <div class="sensor-value"><span id="soil">--</span><span class="sensor-unit">%</span></div>
+        <div class="sensor-description">Soil probe sensor</div>
+    </div>
+
+    <div class="sensor light">
+        <div class="sensor-top">
+            <div class="sensor-icon"><i class="ph-fill ph-sun"></i></div>
+            <div class="sensor-status" id="lightStatus">OPTIMAL</div>
+        </div>
+        <div class="sensor-name">LIGHT INTENSITY</div>
+        <div class="sensor-value"><span id="light">--</span><span class="sensor-unit">Lux</span></div>
+        <div class="sensor-description">Target: 15k - 25k Lux equivalent</div>
+    </div>
+</div>
+
+<div class="section-header" id="nav-auto">
+    <div>
+        <h3>Smart Automation</h3>
+        <span style="color: var(--text-muted); font-size: 12px;">ESP32 autonomous system responses</span>
+    </div>
+</div>
+
+
+<div class="automation-grid">
+    <!-- Auto-Watering Card -->
+    <div class="automation-card" id="autoWateringCard">
+        <div class="automation-icon"><i class="ph-fill ph-drop"></i></div>
+        <div class="automation-info">
+            <h4 id="pumpTitle">Auto-Watering: Standby</h4>
+            <p id="pumpDesc">Soil moisture is optimal.</p>
+        </div>
+        <div class="card-controls">
+            <div class="auto-badge-static">
+                <i class="ph-bold ph-arrows-clockwise"></i>
+                <span>AUTO</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grow Light Card -->
+    <div class="automation-card" id="autoLightCard">
+        <div class="automation-icon"><i class="ph-fill ph-lightbulb"></i></div>
+        <div class="automation-info">
+            <h4 id="lightTitle">Grow Light: Standby</h4>
+            <p id="lightDesc">Natural light is sufficient.</p>
+        </div>
+        <div class="card-controls">
+            <div class="auto-badge-static">
+                <i class="ph-bold ph-arrows-clockwise"></i>
+                <span>AUTO</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Exhaust Fan Card -->
+    <div class="automation-card" id="autoFanCard">
+        <div class="automation-icon"><i class="ph-fill ph-fan"></i></div>
+        <div class="automation-info">
+            <h4 id="fanTitle">Exhaust Fan: Standby</h4>
+            <p id="fanDesc">Temperature is optimal.</p>
+        </div>
+        <div class="card-controls">
+            <div class="auto-badge-static">
+                <i class="ph-bold ph-arrows-clockwise"></i>
+                <span>AUTO</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="content-grid">
+    <!-- Today's Averages Panel -->
+    <div class="panel" id="nav-history">
+    <div class="panel-title">
+        <div>
+            <h3>Averages & History</h3>
+            <span>Live calculations and past records</span>
+        </div>
+        <span class="live-badge" style="background: rgba(0, 225, 255, 0.1); color: var(--info);">LIVE CALC</span>
+    </div>
+    
+    <!-- 2x2 Grid for Today's Averages -->
+    <div class="averages-grid">
+        <div class="avg-card">
+            <div class="avg-icon temp-icon"><i class="ph-fill ph-thermometer"></i></div>
+            <div class="avg-details">
+                <span class="avg-label">TEMP</span>
+                <div class="avg-val"><span id="avgTemp">--</span><small>&deg;C</small></div>
+            </div>
+        </div>
+        <div class="avg-card">
+            <div class="avg-icon hum-icon"><i class="ph-fill ph-drop"></i></div>
+            <div class="avg-details">
+                <span class="avg-label">HUMIDITY</span>
+                <div class="avg-val"><span id="avgHum">--</span><small>%</small></div>
+            </div>
+        </div>
+        <div class="avg-card">
+            <div class="avg-icon soil-icon"><i class="ph-fill ph-potted-plant"></i></div>
+            <div class="avg-details">
+                <span class="avg-label">SOIL</span>
+                <div class="avg-val"><span id="avgSoil">--</span><small>%</small></div>
+            </div>
+        </div>
+        <div class="avg-card">
+            <div class="avg-icon light-icon"><i class="ph-fill ph-sun"></i></div>
+            <div class="avg-details">
+                <span class="avg-label">LIGHT</span>
+                <div class="avg-val"><span id="avgLight">--</span><small>Lux</small></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Section -->
+    <div class="history-section">
+        <h4 class="history-title">Previous Days</h4>
+        <div class="history-list">
+            <div class="history-item">
+                <span class="history-date">Yesterday</span>
+                <div class="history-stats">
+                    <span><i class="ph-fill ph-thermometer" style="color: var(--danger);"></i> 31.2&deg;C</span>
+                    <span><i class="ph-fill ph-drop" style="color: var(--info);"></i> 72%</span>
+                    <span><i class="ph-fill ph-potted-plant" style="color: var(--primary);"></i> 45%</span>
+                </div>
+            </div>
+            <div class="history-item">
+                <span class="history-date">Sep 23</span>
+                <div class="history-stats">
+                    <span><i class="ph-fill ph-thermometer" style="color: var(--danger);"></i> 30.5&deg;C</span>
+                    <span><i class="ph-fill ph-drop" style="color: var(--info);"></i> 75%</span>
+                    <span><i class="ph-fill ph-potted-plant" style="color: var(--primary);"></i> 50%</span>
+                </div>
+            </div>
+            <div class="history-item">
+                <span class="history-date">Sep 22</span>
+                <div class="history-stats">
+                    <span><i class="ph-fill ph-thermometer" style="color: var(--danger);"></i> 32.1&deg;C</span>
+                    <span><i class="ph-fill ph-drop" style="color: var(--info);"></i> 68%</span>
+                    <span><i class="ph-fill ph-potted-plant" style="color: var(--primary);"></i> 38%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Plant Health Panel -->
+    <div class="panel" id="nav-health">
+        <div class="panel-title">
+            <h3>Plant Health</h3>
+            <span>Current condition</span>
+        </div>
+        <div class="health">
+            <div class="plant"><i class="ph-fill ph-plant"></i></div>
+            <div style="width:100%;">
+                <div class="health-score" id="healthScore">--%</div>
+                <div class="health-text">OVERALL SCORE</div>
+                <div class="progress"><div class="progress-bar" id="healthProgress" style="width:0%"></div></div>
+            </div>
+        </div>
+        <div class="health-metrics">
+            <div class="metric"><div class="metric-name">TEMPERATURE</div><div class="metric-value good" id="tempHealth">Optimal</div></div>
+            <div class="metric"><div class="metric-name">HUMIDITY</div><div class="metric-value good" id="humidityHealth">Optimal</div></div>
+            <div class="metric"><div class="metric-name">SOIL</div><div class="metric-value good" id="soilHealth">Moist</div></div>
+            <div class="metric"><div class="metric-name">LIGHT</div><div class="metric-value good" id="lightHealth">Good</div></div>
+        </div>
+    </div>
+</div>
+
+<div class="bottom-grid">
+    <!-- System Log Panel -->
+    <div class="panel">
+        <div class="panel-title">
+            <h3>System Log</h3>
+            <span>Today</span>
+        </div>
+        <div class="activity" id="activityFeed"></div>
+    </div>
+
+    <!-- Single Live Data Export Panel -->
+    <div class="panel" id="nav-export">
+        <div class="panel-title">
+            <div>
+                <h3>Data Export</h3>
+                <span>Download complete ESP32 history</span>
+            </div>
+            <span class="live-badge" style="background: rgba(0, 255, 136, 0.1); color: var(--primary);">READY</span>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 180px; text-align: center; gap: 15px;">
+            <i class="ph-fill ph-hard-drives" style="font-size: 56px; color: var(--primary); text-shadow: 0 0 20px var(--primary-glow);"></i>
+            
+            <div>
+                <h4 style="font-size: 16px; margin-bottom: 16px; font-weight: 500;">Complete Sensor Log</h4>
+                
+                <!-- Button Container -->
+                <div style="display: flex; gap: 12px; justify-content: center;">
+                    
+                    <!-- Direct link to ESP32 CSV file -->
+                    <a href="/sensor_data.csv" download="SmartGrow_Complete_Data.csv" target="_blank" style="background: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 8px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-decoration: none; transition: 0.3s;" onclick="logActivity('Downloading full CSV data...', 'success')">
+                        <i class="ph-bold ph-file-csv" style="font-size: 14px;"></i> CSV
+                    </a>
+                    <a href="/download/excel" target="_blank" class="export-btn btn-excel" onclick="logActivity('Generating multi-sheet Excel file...', 'success')">
+                        <i class="ph-bold ph-file-xls"></i> EXCEL
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <span>SMARTGROW • ESP32 • WI-FI • SMART AGRICULTURE</span>
+    <span id="footerStatus">System online • Last update just now</span>
+</footer>
+
+</main>
+
+<!-- BOTTOM NAVIGATION BAR (Mobile Only) -->
+<nav class="bottom-nav">
+    <a href="#nav-env" class="nav-item active" onclick="switchTab('sensors', this, event)">
+        <i class="ph-fill ph-thermometer"></i>
+        <span>Sensors</span>
+    </a>
+    <a href="#nav-auto" class="nav-item" onclick="switchTab('auto', this, event)">
+        <i class="ph-fill ph-cpu"></i>
+        <span>Auto</span>
+    </a>
+    <a href="#nav-history" class="nav-item" onclick="switchTab('history', this, event)">
+        <i class="ph-fill ph-chart-line-up"></i>
+        <span>History</span>
+    </a>
+    <a href="#nav-health" class="nav-item" onclick="switchTab('health', this, event)">
+        <i class="ph-fill ph-plant"></i>
+        <span>Health</span>
+    </a>
+    <a href="#nav-export" class="nav-item" onclick="switchTab('export', this, event)">
+        <i class="ph-fill ph-hard-drives"></i>
+        <span>Export</span>
+    </a>
+</nav>
+
+</div>      
+
+<!-- iOS "Add to Home Screen" instructions modal (opened by script.js showIosInstallModal) -->
+<div id="iosInstallModal" style="display:none; position:fixed; inset:0; z-index:999; background:rgba(3,10,7,0.85); align-items:center; justify-content:center; padding:20px;">
+    <div style="background: var(--panel-bg, #0a1810); border: 1px solid var(--border, #1f3a2a); border-radius: 16px; max-width: 340px; width:100%; padding: 24px; text-align:center; color: var(--text-main, #e8fff2);">
+        <i class="ph-fill ph-plant" style="font-size:40px; color: var(--primary); text-shadow:0 0 20px var(--primary-glow);"></i>
+        <h4 style="margin: 12px 0 8px; font-size: 16px;">Install SmartGrow</h4>
+        <p style="font-size: 13px; color: var(--text-muted); line-height:1.6; margin-bottom: 18px;">
+            Tap the <i class="ph-bold ph-export"></i> Share icon in Safari's toolbar, then choose
+            <strong>"Add to Home Screen"</strong> to install this dashboard.
+        </p>
+        <button class="control-btn" onclick="closeIosInstallModal()">Got it</button>
+    </div>
+</div>
+
+<script src="/static/script.js"></script>
+
+{% if dev_mode %}
+<!-- DEV MODE: live-reload client. Listens to dashboard.py's /dev/reload-stream SSE
+     endpoint. A frontend-file change sends "reload" and we reload immediately.
+     A backend (.py) change makes the whole Flask process restart, which drops
+     this connection — onerror below treats that dropped/failed connection as
+     the signal to reload once the server comes back up. -->
+<script>
+(function () {
+    function connect() {
+        const es = new EventSource('/dev/reload-stream');
+        let hasConnected = false;
+
+        es.onopen = () => { hasConnected = true; };
+
+        es.onmessage = (e) => {
+            if (e.data === 'reload') {
+                console.log('[DevReload] Frontend change detected — reloading...');
+                location.reload();
+            }
+        };
+
+        es.onerror = () => {
+            es.close();
+            if (hasConnected) {
+                // We were connected before, so this is the server restarting
+                // (a .py change). Poll until it's back, then reload.
+                const retry = setInterval(() => {
+                    fetch('/').then(() => {
+                        clearInterval(retry);
+                        location.reload();
+                    }).catch(() => {});
+                }, 500);
+            } else {
+                setTimeout(connect, 1000);
+            }
+        };
+    }
+    connect();
+})();
+</script>
+{% endif %}
+
+</body>
+</html>
